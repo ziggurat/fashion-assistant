@@ -1,9 +1,18 @@
 import streamlit as st
 import os
 import asyncio
+import logging
 from agent import FashionAgent
+from vision_agent import FashionVisionAgent
 from database import init_db, get_all_products
 from utils import display_product_card
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Page config
 st.set_page_config(
@@ -59,8 +68,14 @@ def init_session_state():
         st.session_state.messages = []
     if "agent" not in st.session_state:
         st.session_state.agent = initialize_agent()
+    if "vision_agent" not in st.session_state:
+        st.session_state.vision_agent = FashionVisionAgent()
     if "current_products" not in st.session_state:
         st.session_state.current_products = []
+    if "uploaded_image" not in st.session_state:
+        st.session_state.uploaded_image = None
+    if "image_analysis" not in st.session_state:
+        st.session_state.image_analysis = None
 
 
 async def main():
@@ -119,48 +134,94 @@ async def main():
     # Chat column
     with col1:
         st.header("💬 Conversación")
-        
+
         # Display chat history
-        chat_container = st.container(height=500)
+        chat_container = st.container(height=450)
         with chat_container:
             for message in st.session_state.messages:
                 with st.chat_message(message["role"]):
                     st.markdown(message["content"])
-        
+                    # Display image if present in message
+                    if "image" in message and message["image"]:
+                        st.image(message["image"], width=200)
+
         # Chat input
         if prompt := st.chat_input("¿Qué estás buscando hoy?"):
-            # Add user message
-            st.session_state.messages.append({
+            # Get uploaded file if present
+            uploaded_file = st.session_state.get("temp_uploaded_file", None)
+            # Prepare user message
+            user_message = {
                 "role": "user",
                 "content": prompt
-            })
-            
+            }
+
+            # Check if there's an uploaded image
+            image_bytes = None
+            if uploaded_file is not None:
+                image_bytes = uploaded_file.getvalue()
+                user_message["image"] = uploaded_file
+                logger.info(f"📸 Imagen cargada: {uploaded_file.name}, Tamaño: {len(image_bytes)} bytes")
+
+            # Add user message
+            st.session_state.messages.append(user_message)
+
             # Display user message
             with chat_container:
                 with st.chat_message("user"):
                     st.markdown(prompt)
-            
+                    if uploaded_file is not None:
+                        st.image(uploaded_file, width=200)
+
             # Get agent response
             with chat_container:
                 with st.chat_message("assistant"):
-                    with st.spinner("✨ Buscando las mejores opciones..."):
-                        try:
+                    try:
+                        # If there's an image, analyze it first
+                        image_context = ""
+                        if image_bytes:
+                            with st.spinner("🔍 Analizando la imagen..."):
+                                logger.info("🔍 Iniciando análisis de imagen con FashionVisionAgent")
+                                vision_result = await st.session_state.vision_agent.analyze_image(
+                                    image_bytes=image_bytes,
+                                    user_prompt=prompt
+                                )
+
+                                if vision_result["success"]:
+                                    # Use only the extracted search terms for RAG
+                                    search_terms = vision_result['formatted_search_query']
+                                    image_context = f"\n\nTérminos de búsqueda extraídos de la imagen:\n{search_terms}"
+                                    logger.info("✅ Análisis de imagen exitoso")
+                                    logger.info(f"📋 Descripción completa:\n{vision_result['analysis']}")
+                                    logger.info(f"🔎 Términos de búsqueda para RAG:\n{search_terms}")
+                                    st.info("✅ Imagen analizada correctamente")
+                                else:
+                                    logger.warning(f"⚠️ Error en análisis de imagen: {vision_result.get('error', 'Error desconocido')}")
+                                    st.warning("⚠️ No pude analizar la imagen completamente, continuaré con tu consulta de texto.")
+
+                        # Combine user prompt with image context
+                        combined_message = prompt + image_context
+
+                        if image_context:
+                            logger.info(f"💬 Mensaje combinado enviado al FashionAgent:\n{combined_message}")
+
+                        # Get fashion agent response
+                        with st.spinner("✨ Buscando las mejores opciones..."):
                             # Pass conversation history (excluding the current user message)
                             conversation_history = st.session_state.messages[:-1] if len(st.session_state.messages) > 1 else []
                             response = await st.session_state.agent.process_message(
-                                message=prompt,
+                                message=combined_message,
                                 conversation_history=conversation_history
                             )
-                            
+
                             if response["success"]:
                                 st.markdown(response["response"])
-                                
+
                                 # Add to history
                                 st.session_state.messages.append({
                                     "role": "assistant",
                                     "content": response["response"]
                                 })
-                                
+
                                 # Update products if any were found
                                 if response.get("products"):
                                     st.session_state.current_products = response["products"]
@@ -171,11 +232,26 @@ async def main():
                                     "role": "assistant",
                                     "content": error_msg
                                 })
-                        except Exception as e:
-                            error_msg = f"Error: {str(e)}"
-                            print(e)
-                            st.error(error_msg)
-    
+                    except Exception as e:
+                        error_msg = f"Error: {str(e)}"
+                        print(e)
+                        st.error(error_msg)
+
+        # Image upload section (below chat input)
+        st.markdown("---")
+        uploaded_file = st.file_uploader(
+            "📸 Sube una imagen de referencia (opcional)",
+            type=["jpg", "jpeg", "png", "gif", "webp"],
+            help="Sube una foto de ropa que te guste para encontrar productos similares",
+            key="image_uploader"
+        )
+
+        # Store uploaded file in session state for next message
+        if uploaded_file is not None:
+            st.session_state.temp_uploaded_file = uploaded_file
+        else:
+            st.session_state.temp_uploaded_file = None
+
     # Products column
     with col2:
         st.header("🛍️ Productos")

@@ -16,6 +16,10 @@ sqlalchemy
 pillow
 sentence-transformers
 
+# Vector database
+faiss-cpu
+numpy
+
 # Utilities
 python-dotenv
 pydantic

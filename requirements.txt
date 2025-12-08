@@ -23,3 +23,5 @@ numpy
 # Utilities
 python-dotenv
 pydantic
+
+standard-imghdr

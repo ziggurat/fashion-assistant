@@ -13,7 +13,7 @@ import numpy as np
 import faiss
 from sentence_transformers import SentenceTransformer
 
-from app.database import SessionLocal, Product
+from database import SessionLocal, Product
 
 logger = logging.getLogger(__name__)
 

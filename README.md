@@ -11,6 +11,44 @@ An intelligent fashion assistant application built with **Streamlit**, **SQLite*
 - **📦 Inventory Management**: Real-time stock checking and availability
 - **🎨 Style Analysis**: Compatibility checking for outfit combinations
 
+## 🏛️ Solution Architecture
+
+### Core Components
+
+- **Streamlit Web Interface**: Responsive UI with chat interface, product display, and image upload capabilities
+- **AI Agent System**: LangChain-powered agent using LangGraph for orchestration and tool calling
+- **Vision Analysis**: Claude Vision integration for analyzing uploaded fashion images
+- **Vector Search Engine**: FAISS-based semantic search for product recommendations
+- **SQLite Database**: Product catalog loaded from JSON data file with SQLAlchemy ORM for data management
+- **Business Logic Layer**: Product search, inventory checking, and style compatibility analysis
+
+### LLM Integration
+
+The system supports multiple AI providers through LangChain:
+- **Anthropic Claude**: Primary model for both chat and vision analysis
+- **OpenAI GPT**: Alternative chat model option
+- **Google Gemini**: Additional chat model option
+
+The LLM acts as the intelligent core, understanding user fashion queries and orchestrating the recommendation process.
+
+### AI Tools
+
+The agent uses specialized tools to provide accurate recommendations:
+
+- **ProductSearchTool**: Performs semantic search using FAISS vector embeddings to find relevant products based on user queries. Automatically filters results by inventory availability to ensure only in-stock items are recommended.
+
+### Chat Flow
+
+1. **User Input**: User types a fashion query or uploads a reference image
+2. **Image Analysis** (optional): If an image is uploaded, the Vision Agent uses Claude Vision to extract fashion attributes (colors, styles, categories, occasions) and generates search terms
+3. **Query Processing**: The Fashion Agent receives the query (text + optional image context) and conversation history
+4. **Tool Execution**: Agent calls ProductSearchTool to find relevant products using semantic similarity search
+5. **Inventory Filtering**: Results are filtered to show only available products
+6. **Response Generation**: Agent crafts personalized fashion recommendations in natural language
+7. **Display Update**: Recommendations appear in chat, and matching products are displayed in the sidebar panel
+
+The system maintains conversation context throughout the session, allowing for follow-up questions and refined recommendations.
+
 ## 🏗️ Project Structure
 
 ```
@@ -48,7 +86,7 @@ fashion-assistant/
 - **`app/database.py`**: Data persistence layer including:
   - SQLAlchemy ORM with SQLite database
   - Product model with comprehensive attributes (colors, styles, occasions, pricing)
-  - Automatic seeding of sample fashion catalog (10 products)
+  - Automatic loading of product catalog from JSON data file
   - Database connection management and utilities
 
 - **`app/services.py`**: Core business logic providing:
@@ -144,13 +182,7 @@ Use the "🔄 Nueva Conversación" button in the sidebar to start fresh conversa
 
 ## 🗄️ Database
 
-The application uses SQLite with a pre-seeded catalog of 10 sample products:
-
-- **3 Dresses**: Evening gown, floral midi dress, classic cocktail dress
-- **3 Shoes**: Black stilettos, gold sandals, nude heels
-- **2 Accessories**: Gold clutch, black leather handbag
-- **1 Pants**: Black formal trousers
-- **1 Blouse**: White silk blouse
+The application uses SQLite database loaded with product data from `app/data/products.json`. The catalog contains over 44,000 fashion items across various categories including clothing, shoes, and accessories.
 
 ### Database Location
 
@@ -258,4 +290,3 @@ For questions or issues:
 - Review the code comments for implementation details
 
 ---
-

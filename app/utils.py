@@ -3,12 +3,8 @@ import streamlit as st
 
 def display_product_card(product: dict):
     """Display a product card in Streamlit"""
-    
+
     with st.container():
-        # Product image
-        if product.get("images") and len(product["images"]) > 0:
-            st.image(product["images"][0], width='stretch')
-        
         # Product name and category
         st.markdown(f"### {product['name']}")
         st.caption(f"📂 {product.get('category', 'N/A').title()} | {product.get('subcategory', 'N/A').title()}")
